@@ -1,0 +1,74 @@
+CREATE VIEW StandardNarrative.QcHistory
+AS
+WITH QCHistory AS
+(
+    SELECT
+        eqc.Id AS QcId,
+        eqc.EpisodeId,
+        CONCAT(p.LastName, ', ', p.FirstName) AS QcBy,
+        eqc.QcBy AS QcById,
+        eqc.QCDate,
+        eqc.Qclvl,
+
+        LAG(eqc.QcBy) OVER
+        (
+            PARTITION BY eqc.EpisodeId
+            ORDER BY eqc.QCDate, eqc.Id
+        ) AS PreviousQcById
+
+    FROM StandardNarrative.EpisodeQCReview eqc
+    INNER JOIN StandardNarrative.Users u
+        ON u.Id = eqc.QcBy
+    INNER JOIN dbo.People p
+        ON p.Id = u.PersonId
+),
+ReviewCounts AS
+(
+    SELECT
+        QcId,
+        EpisodeId,
+        QcBy,
+        QCDate,
+        Qclvl,
+
+        SUM(
+            CASE
+                WHEN PreviousQcById IS NULL
+                     OR PreviousQcById <> QcById
+                    THEN 1
+                ELSE 0
+            END
+        ) OVER
+        (
+            PARTITION BY EpisodeId
+            ORDER BY QCDate, QcId
+            ROWS UNBOUNDED PRECEDING
+        ) AS ReviewCount
+
+    FROM QCHistory
+)
+SELECT
+    QcId,
+    EpisodeId,
+    QcBy,
+    QCDate,
+    -- Qclvl is removed from the select list since it's now embedded in QC
+
+    CONCAT(
+        ReviewCount,
+        CASE
+            WHEN ReviewCount % 100 IN (11, 12, 13)
+                THEN 'th QC'
+            WHEN ReviewCount % 10 = 1
+                THEN 'st QC'
+            WHEN ReviewCount % 10 = 2
+                THEN 'nd QC'
+            WHEN ReviewCount % 10 = 3
+                THEN 'rd QC'
+            ELSE 'th QC'
+        END,
+        ' - Level ', Qclvl
+    ) AS QcLvl
+
+FROM ReviewCounts;
+GO

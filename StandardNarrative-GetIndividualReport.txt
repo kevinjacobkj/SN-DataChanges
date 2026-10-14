@@ -1,0 +1,66 @@
+Create PROCEDURE StandardNarrative.GetIndividualReport
+    @From DATE,
+    @To DATE,
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    ;WITH CTE AS
+    (
+        SELECT
+              e.Id AS EpisodeId
+            , ed.CycisID
+            , ed.LastName + ', ' + ed.FirstName AS Name
+            , s.Description AS Status
+            , es.Changed
+            , CASE
+                WHEN s.IsReopened = 1 THEN rr.Description
+                ELSE '-'
+              END AS ReopenReason
+            , p.LastName + ', ' + p.FirstName AS Worker
+            , ROW_NUMBER() OVER
+              (
+                  PARTITION BY e.Id
+                  ORDER BY es.Changed DESC
+              ) AS rn
+        FROM StandardNarrative.Episodes e
+        INNER JOIN StandardNarrative.EpisodeStatus es
+            ON es.EpisodeId = e.Id
+        INNER JOIN StandardNarrative.Status s
+            ON s.Id = es.StatusId
+        LEFT JOIN StandardNarrative.EpisodeReopenings er
+            ON er.EpisodeId = e.Id
+        LEFT JOIN StandardNarrative.ReasonsForReopening rr
+            ON rr.Id = er.ReasonForReopeningId
+        INNER JOIN StandardNarrative.EpisodeDemographics ed
+            ON ed.EpisodeId = es.EpisodeId
+        INNER JOIN StandardNarrative.EpisodeAssignments ea
+            ON ea.EpisodeId = es.EpisodeId
+        INNER JOIN StandardNarrative.Users u
+            ON u.Id = ea.UserId
+        INNER JOIN People p
+            ON p.Id = u.PersonId
+        WHERE
+            (
+                s.Id IN (3, 5, 21, 26, 30)
+                OR s.IsReopened = 1
+            )
+            AND es.Changed >= @From
+            AND es.Changed < DATEADD(DAY, 1, @To)
+            AND (@UserId = 0 OR ea.UserId = @UserId)
+    )
+    SELECT
+          EpisodeId
+        , CycisID
+        , Name
+        , Status
+        , Changed
+        , ReopenReason
+        , Worker
+    FROM CTE
+    WHERE rn = 1
+    ORDER BY EpisodeId DESC;
+
+END
+GO

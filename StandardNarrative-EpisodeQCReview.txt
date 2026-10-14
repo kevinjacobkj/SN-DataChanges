@@ -1,0 +1,11 @@
+CREATE TABLE [StandardNarrative].[EpisodeQCReview]
+(
+[Id] [int] NOT NULL IDENTITY(1, 1),
+[EpisodeId] [int] NOT NULL,
+[QcDate] [datetime] NOT NULL,
+[QcBy] [int] NOT NULL,
+[QcLvl] [int] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [StandardNarrative].[EpisodeQCReview] ADD CONSTRAINT [PK__EpisodeQ__3214EC073671579D] PRIMARY KEY CLUSTERED ([Id]) ON [PRIMARY]
+GO

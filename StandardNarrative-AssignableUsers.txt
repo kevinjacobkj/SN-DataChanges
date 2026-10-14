@@ -1,0 +1,21 @@
+ALTER VIEW StandardNarrative.AssignableUsers
+AS
+SELECT u.Id UserId
+ , p.Id PersonId
+ , p.FirstName
+ , p.LastName
+ , p.IsProgrammer
+ , (SELECT COUNT(*)
+  FROM StandardNarrative.EpisodeAssignments ea
+  INNER JOIN StandardNarrative.EpisodeStatus es on ea.EpisodeId = es.EpisodeId And es.IsActive = 1
+  INNER JOIN StandardNarrative.Status s on es.StatusId = s.Id
+    WHERE ea.IsActive = 1 AND ea.UserId = u.Id
+        And s.IsCompleted = 0
+ ) NumberOfEpisodes
+FROM StandardNarrative.Users u
+INNER JOIN dbo.People p ON u.PersonId = p.Id
+INNER JOIN dbo.UserClaims uc ON uc.PersonId = p.Id
+WHERE p.IsActive = 1
+ AND u.IsActive = 1
+ AND uc.ClaimValue = 'StandardNarrative.Assignable'
+GO

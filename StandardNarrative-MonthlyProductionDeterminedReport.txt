@@ -1,0 +1,40 @@
+CREATE PROCEDURE [StandardNarrative].[MonthlyProductionDeterminedReport]
+    @From DATETIME,
+    @To   DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        p.Id AS PersonId,
+        p.UserName,
+        CONCAT(p.LastName, ', ', p.FirstName) AS Name,
+        COUNT(DISTINCT es.EpisodeId) AS CompletedEpisodes,
+        CASE
+            WHEN p.IsActive = 1 AND u.IsActive = 1 THEN 'Yes'
+            ELSE 'No'
+        END AS IsActiveUser
+    FROM StandardNarrative.EpisodeStatus es
+        INNER JOIN StandardNarrative.Status s
+            ON s.Id = es.StatusId
+        INNER JOIN StandardNarrative.EpisodeAssignments ea
+            ON ea.EpisodeId = es.EpisodeId
+        INNER JOIN StandardNarrative.Users u
+            ON u.Id = ea.UserId
+        INNER JOIN dbo.People p
+            ON p.Id = u.PersonId
+    WHERE
+        s.Id = 3
+        AND es.Changed >= @From
+        AND es.Changed < DATEADD(DAY, 1, @To)
+    GROUP BY
+        p.Id,
+        p.UserName,
+        p.FirstName,
+        p.LastName,
+        p.IsActive,
+        u.IsActive
+    ORDER BY
+        CompletedEpisodes DESC;
+END;
+GO

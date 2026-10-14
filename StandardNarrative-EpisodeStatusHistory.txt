@@ -1,0 +1,16 @@
+ALTER VIEW StandardNarrative.EpisodeStatusHistory
+AS
+SELECT
+     es.EpisodeId,
+     s.Description AS Status,
+     es.Changed,
+     CASE 
+        WHEN es.ChangedBy LIKE '%StandardNarrative.%' THEN 'SYSTEM'
+        ELSE p.LastName + ', ' + p.FirstName
+     END ChangedBy
+FROM StandardNarrative.EpisodeStatus es
+INNER JOIN StandardNarrative.Status s
+    ON es.StatusId = s.Id
+LEFT OUTER JOIN dbo.People p
+    ON p.UserName = es.ChangedBy
+GO

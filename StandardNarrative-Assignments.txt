@@ -1,0 +1,16 @@
+ALTER VIEW StandardNarrative.Assignments
+AS
+
+SELECT ea.Id
+    , ea.EpisodeId
+    , ea.UserId
+    , ea.Assigned
+    , pe.LastName + ', ' + pe.FirstName AssignedBy
+    , ea.IsActive
+    , p.LastName + ', ' + p.FirstName AssignedTo
+    , p.Email
+FROM StandardNarrative.EpisodeAssignments ea
+INNER JOIN StandardNarrative.Users u ON ea.UserId = u.Id
+INNER JOIN dbo.People p ON u.PersonId = p.Id
+LEFT OUTER JOIN dbo.People pe ON pe.UserName = ea.AssignedBy
+GO

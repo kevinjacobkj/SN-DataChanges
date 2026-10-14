@@ -1,0 +1,83 @@
+CREATE PROCEDURE StandardNarrative.MonthlyQualityReportDetail
+    @From DATETIME,
+    @To DATETIME,
+    @PersonId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    WITH Determination AS
+    (
+        SELECT
+            es.EpisodeId,
+            dp.Id AS PersonId,
+            CONCAT(dp.LastName, ', ', dp.FirstName) AS DeterminedBy,
+            CASE
+                WHEN dp.IsActive = 1 THEN 'Yes'
+                ELSE 'No'
+            END AS IsActiveUser,
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY es.EpisodeId
+                ORDER BY es.Changed DESC
+            ) AS rn
+        FROM StandardNarrative.EpisodeStatus es
+        INNER JOIN dbo.People dp
+            ON dp.UserName = es.ChangedBy
+        WHERE es.StatusId IN (7, 8)
+    ),
+    QC AS
+    (
+        SELECT
+            eqc.EpisodeId,
+            ed.CycisID,
+            CONCAT(ed.LastName, ', ', ed.FirstName) AS Name,
+            eqc.QCDate,
+            d.PersonId,
+            d.DeterminedBy,
+            d.IsActiveUser,
+            CASE
+                WHEN EXISTS
+                (
+                    SELECT 1
+                    FROM StandardNarrative.EpisodeStatus es
+                    INNER JOIN StandardNarrative.Status s
+                        ON s.Id = es.StatusId
+                    INNER JOIN StandardNarrative.EpisodeReopenings er
+                        ON er.EpisodeId = es.EpisodeId
+                    WHERE es.EpisodeId = eqc.EpisodeId
+                      AND s.IsReopened = 1
+                      AND er.ReasonForReopeningId = 2
+                )
+                THEN 'Yes'
+                ELSE 'No'
+            END AS HasError,
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY eqc.EpisodeId
+                ORDER BY eqc.QCDate DESC
+            ) AS rn
+        FROM StandardNarrative.EpisodeQCReview eqc
+        INNER JOIN StandardNarrative.EpisodeDemographics ed
+            ON ed.EpisodeId = eqc.EpisodeId
+        INNER JOIN Determination d
+            ON d.EpisodeId = eqc.EpisodeId
+           AND d.rn = 1
+        WHERE eqc.QCDate BETWEEN @From AND @To
+          AND d.PersonId = @PersonId
+    )
+
+    SELECT
+        EpisodeId,
+        CycisID,
+        Name,
+        QCDate,
+        DeterminedBy,
+        IsActiveUser,
+        HasError
+    FROM QC
+    WHERE rn = 1
+    ORDER BY QCDate DESC, EpisodeId;
+
+END
+GO

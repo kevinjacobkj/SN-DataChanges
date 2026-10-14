@@ -1,0 +1,79 @@
+CREATE PROCEDURE StandardNarrative.MonthlyQualityReport
+    @From DATETIME,
+    @To DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    WITH Determination AS
+    (
+        SELECT
+            es.EpisodeId,
+            dp.Id AS PersonId,
+            CONCAT(dp.LastName, ', ', dp.FirstName) AS DeterminedBy,
+            CASE
+                WHEN dp.IsActive = 1 AND u.IsActive = 1 THEN 'Yes'
+                ELSE 'No'
+            END AS IsActiveUser,
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY es.EpisodeId
+                ORDER BY es.Changed DESC
+            ) AS rn
+        FROM StandardNarrative.EpisodeStatus es
+        INNER JOIN dbo.People dp
+            ON dp.UserName = es.ChangedBy
+        INNER JOIN StandardNarrative.Users u ON u.PersonId = dp.Id
+        WHERE es.StatusId IN (7, 8)
+    ),
+    QC AS
+    (
+        SELECT DISTINCT
+            d.PersonId,
+            d.DeterminedBy,
+            d.IsActiveUser,
+            eqc.EpisodeId,
+            CASE
+                WHEN EXISTS
+                (
+                    SELECT 1
+                    FROM StandardNarrative.EpisodeStatus es2
+                    INNER JOIN StandardNarrative.Status s
+                        ON s.Id = es2.StatusId
+                    INNER JOIN StandardNarrative.EpisodeReopenings er
+                        ON er.EpisodeId = es2.EpisodeId
+                    WHERE es2.EpisodeId = eqc.EpisodeId
+                      AND s.IsReopened = 1
+                      AND er.ReasonForReopeningId = 2
+                )
+                THEN 1
+                ELSE 0
+            END AS HasError
+        FROM StandardNarrative.EpisodeQCReview eqc
+        INNER JOIN Determination d
+            ON d.EpisodeId = eqc.EpisodeId
+           AND d.rn = 1
+        WHERE eqc.QCDate BETWEEN @From AND @To
+    )
+
+    SELECT
+        PersonId,
+        DeterminedBy,
+        IsActiveUser,
+        COUNT(DISTINCT EpisodeId) AS TotalEpisodesQCd,
+        SUM(HasError) AS ErrorEpisodes,
+        CAST(
+            100.0 * SUM(HasError) /
+            NULLIF(COUNT(DISTINCT EpisodeId), 0)
+            AS DECIMAL(5,2)
+        ) AS ErrorRatio
+    FROM QC
+    GROUP BY
+        PersonId,
+        DeterminedBy,
+        IsActiveUser
+    ORDER BY
+        ErrorRatio;
+
+END
+GO

@@ -1,0 +1,34 @@
+CREATE PROCEDURE StandardNarrative.RemoveQcReview
+ @QcId INT,
+ @UserId INT 
+AS
+BEGIN
+ DECLARE @PerformedBy VARCHAR(50) = ''
+ DECLARE @Params VARCHAR(255) = ''
+
+
+ SELECT @PerformedBy = p.UserName FROM 
+ StandardNarrative.Users u
+ INNER JOIN dbo.People p ON p.Id = u.PersonId
+ WHERE u.Id = @UserId
+
+ IF EXISTS (SELECT * FROM StandardNarrative.EpisodeQCReview WHERE Id = @QcId)
+ BEGIN
+  
+  SELECT @Params = 'EpisodeId: ' + CAST(EpisodeId AS VARCHAR)+ ' QcDate: ' + CAST(QcDate AS VARCHAR) + 
+  ' QcBy: ' + CAST(QcBy AS VARCHAR) + ' QcLvl: ' + CAST(QcLvl AS VARCHAR)
+  FROM StandardNarrative.EpisodeQCReview WHERE Id = @QcId
+
+  INSERT INTO Auditing.Activities (Recorded, Name, Params, PerformedBy)
+  VALUES (GETDATE(), 'StandardNarrative.RemoveQcReview', CONCAT('Episode: ', @Params), @PerformedBy) 
+
+  DELETE FROM StandardNarrative.EpisodeQCReview WHERE Id = @QcId
+
+  SELECT Cast (1 AS BIT) AS Result 
+  RETURN
+ END
+
+ SELECT Cast (0 AS BIT) AS Result 
+ RETURN
+END
+GO

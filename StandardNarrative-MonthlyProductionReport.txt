@@ -1,0 +1,35 @@
+CREATE PROCEDURE StandardNarrative.MonthlyProductionReport
+    @From DATETIME,
+    @To   DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+      p.Id PersonId
+    , u.Id UserId
+    , p.UserName
+    ,CONCAT(p.LastName, ', ', p.FirstName) AS Name
+    ,COUNT(eqc.EpisodeId) QCEpisodes
+    ,CASE
+        WHEN p.IsActive = 1 AND u.IsActive = 1 THEN 'Yes'
+        ELSE 'No'
+    END AS IsActiveUser
+    FROM 
+    StandardNarrative.EpisodeQCReview eqc
+    INNER JOIN StandardNarrative.Users u ON u.Id = eqc.QcBy
+    INNER JOIN dbo.People p ON p.Id = u.PersonId
+    WHERE eqc.QcDate BETWEEN @From AND @To
+    GROUP BY
+    p.Id,
+    u.Id,
+    p.FirstName,
+    p.LastName,
+    u.IsActive,
+    p.IsActive,
+    p.UserName
+    ORDER BY 
+    QCEpisodes DESC 
+
+END;
+GO

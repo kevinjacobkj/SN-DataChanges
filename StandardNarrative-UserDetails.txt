@@ -1,0 +1,17 @@
+ALTER VIEW StandardNarrative.UserDetails
+AS
+
+SELECT u.Id UserId
+    , u.PersonId
+    , u.IsActive UserIsActive
+    , u.Cm24UserID
+    , p.FirstName
+    , p.LastName
+    , p.Email
+    , p.PhoneNumber
+    , p.UserName
+    , p.IsActive PersonIsActive
+    , p.IsProgrammer
+FROM StandardNarrative.Users u
+INNER JOIN dbo.People p ON u.PersonId = p.id
+go

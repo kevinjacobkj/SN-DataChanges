@@ -1,0 +1,55 @@
+CREATE PROCEDURE StandardNarrative.MonthlyProductionReportDetail
+    @From DATETIME,
+    @To DATETIME,
+    @PersonId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    ;WITH QC AS
+    (
+        SELECT *,
+            LAG(QcBy) OVER (PARTITION BY EpisodeId ORDER BY QcDate, Id) AS PrevQcBy
+        FROM StandardNarrative.EpisodeQCReview
+    ),
+    Numbered AS
+    (
+        SELECT *,
+            SUM(CASE WHEN PrevQcBy IS NULL OR PrevQcBy <> QcBy THEN 1 ELSE 0 END)
+                OVER (PARTITION BY EpisodeId ORDER BY QcDate, Id ROWS UNBOUNDED PRECEDING) AS QCNumber
+        FROM QC
+    )
+    SELECT
+        ed.CycisID,
+        q.EpisodeId,
+        CONCAT(ed.LastName, ', ', ed.FirstName) AS Name,
+        q.QcDate,
+        ed.OpenDate,
+        (
+            SELECT TOP 1 es.Changed
+            FROM StandardNarrative.EpisodeStatus es
+            WHERE es.EpisodeId = ed.EpisodeId
+              AND es.StatusId IN (7, 8)
+            ORDER BY es.Changed DESC
+        ) AS DeterminationDate,
+        CONCAT(
+            q.QCNumber,
+            CASE
+                WHEN q.QCNumber % 100 IN (11, 12, 13) THEN 'th'
+                WHEN q.QCNumber % 10 = 1 THEN 'st'
+                WHEN q.QCNumber % 10 = 2 THEN 'nd'
+                WHEN q.QCNumber % 10 = 3 THEN 'rd'
+                ELSE 'th'
+            END,
+            ' QC - Level ',
+            ISNULL(q.QcLvl, 1)
+        ) AS QcLvl
+    FROM Numbered q
+    JOIN StandardNarrative.EpisodeDemographics ed ON ed.EpisodeId = q.EpisodeId
+    JOIN StandardNarrative.Users u ON u.Id = q.QcBy
+    JOIN dbo.People p ON p.Id = u.PersonId
+    WHERE q.QcDate BETWEEN @From AND @To
+      AND p.Id = @PersonId
+    ORDER BY q.QcDate DESC, q.Id;
+END;
+GO

@@ -1,0 +1,22 @@
+ALTER VIEW SubsidyTracking.Staff
+WITH SCHEMABINDING
+AS 
+SELECT p.Id
+    , p.FirstName
+    , p.LastName
+    , p.PhoneNumber
+    , CASE WHEN EXISTS(SELECT Id FROM SubsidyTracking.IntakeCoordinators WHERE Id = p.Id) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END IsIntakeCoordinator
+    , CASE WHEN EXISTS(SELECT Id FROM SubsidyTracking.Specialists WHERE Id = p.Id) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END IsSpecialist
+    , CASE WHEN EXISTS(SELECT Id FROM SubsidyTracking.Supervisors WHERE Id = p.Id) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END IsSupervisor
+    , CASE WHEN EXISTS(SELECT Id FROM SubsidyTracking.Signers WHERE Id = p.Id) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END IsSigner
+    , CASE WHEN EXISTS(SELECT Id FROM SubsidyTracking.Reviewers WHERE Id = p.Id) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END IsReviewer
+    , u.RegionId
+    , r.Name AS Region
+    , p.UserName
+    , p.Email
+    , u.IsActive
+    , p.IsProgrammer
+FROM dbo.People p
+INNER JOIN SubsidyTracking.Users u on p.Id = u.PersonId
+INNER JOIN SubsidyTracking.Regions r on u.RegionId = r.Id
+GO

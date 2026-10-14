@@ -1,0 +1,83 @@
+ALTER PROCEDURE [StandardNarrative].[ListUserEpisodeStatusCounts]
+AS
+
+DECLARE @Workers TABLE (UserId INT, IsAssignable BIT, Pending INT, InProcess INT, Reopened INT);
+
+INSERT INTO @Workers (UserId, IsAssignable, Pending, InProcess, Reopened)
+SELECT u.Id UserId
+     , 1
+     , 0
+     , 0
+     , 0
+FROM dbo.UserClaims                uc
+INNER JOIN StandardNarrative.Users u ON uc.PersonId = u.PersonId
+WHERE uc.ClaimValue = 'StandardNarrative.Assignable';
+
+INSERT INTO @Workers (UserId, IsAssignable, Pending, InProcess, Reopened)
+SELECT ea.UserId
+     , 0
+     , 0
+     , 0
+     , 0
+FROM StandardNarrative.EpisodeAssignments ea
+WHERE ea.IsActive = 1
+      AND ea.UserId NOT IN ( SELECT UserId FROM @Workers )
+GROUP BY ea.UserId;
+
+UPDATE w
+SET w.Pending = (
+        SELECT COUNT(*)
+        FROM StandardNarrative.EpisodeAssignments  ea
+        INNER JOIN StandardNarrative.EpisodeStatus es ON ea.EpisodeId = es.EpisodeId
+                                                         AND es.IsActive = 1
+        INNER JOIN StandardNarrative.Status        s ON es.StatusId = s.Id
+                                                        AND s.IsPending = 1
+        WHERE ea.UserId = w.UserId
+              AND ea.IsActive = 1
+    )
+FROM @Workers w;
+
+UPDATE w
+SET w.InProcess = (
+        SELECT COUNT(*)
+        FROM StandardNarrative.EpisodeAssignments  ea
+        INNER JOIN StandardNarrative.EpisodeStatus es ON ea.EpisodeId = es.EpisodeId
+                                                         AND es.IsActive = 1
+        INNER JOIN StandardNarrative.Status        s ON es.StatusId = s.Id
+                                                        AND s.InProcess = 1
+        WHERE ea.UserId = w.UserId
+              AND ea.IsActive = 1
+    )
+FROM @Workers w;
+
+UPDATE w
+SET w.Reopened = (
+        SELECT COUNT(*)
+        FROM StandardNarrative.EpisodeAssignments  ea
+        INNER JOIN StandardNarrative.EpisodeStatus es ON ea.EpisodeId = es.EpisodeId
+                                                         AND es.IsActive = 1
+        INNER JOIN StandardNarrative.Status        s ON es.StatusId = s.Id
+                                                        AND s.IsReopened = 1
+                                                        AND s.IsCompleted = 0
+        WHERE ea.UserId = w.UserId
+              AND ea.IsActive = 1
+    )
+FROM @Workers w;
+
+DELETE FROM @Workers
+WHERE IsAssignable = 0 AND Pending + InProcess + Reopened = 0
+
+SELECT w.UserId
+     , u.PersonId
+     , p.LastName + ', ' + p.FirstName FullName
+     , p.isProgrammer
+     , w.IsAssignable
+     , w.Pending
+     , w.InProcess
+     , w.Reopened
+FROM @Workers                      w
+INNER JOIN StandardNarrative.Users u ON w.UserId = u.Id
+INNER JOIN dbo.People              p ON u.PersonId = p.Id
+ORDER BY p.LastName, p.FirstName;
+
+GO

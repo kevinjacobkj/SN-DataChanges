@@ -1,0 +1,94 @@
+CREATE PROCEDURE StandardNarrative.QCReviewSearch
+    @CycisID VARCHAR(50),
+    @FirstName VARCHAR(50),
+    @LastName VARCHAR(50),
+    @EpisodeId INT,
+    @RequestedUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        se.EpisodeId,
+        se.CycisID,
+        se.StatusId,
+        se.CurrentStatus,
+        se.BirthDate,
+        se.OpenDate,
+        se.ApplicationDate,
+        se.Determination,
+        se.UpdatedDetermination,
+        se.FirstName,
+        se.LastName,
+        LastQC.QcDate AS LastQCDate,
+        CONCAT(p.LastName, ', ', p.FirstName) AS QcBy,
+
+        CONCAT(
+            ISNULL(QCInfo.QCNumber, 1),
+            CASE
+                WHEN ISNULL(QCInfo.QCNumber, 1) % 100 IN (11, 12, 13) THEN 'th'
+                WHEN ISNULL(QCInfo.QCNumber, 1) % 10 = 1 THEN 'st'
+                WHEN ISNULL(QCInfo.QCNumber, 1) % 10 = 2 THEN 'nd'
+                WHEN ISNULL(QCInfo.QCNumber, 1) % 10 = 3 THEN 'rd'
+                ELSE 'th'
+            END
+        ) AS ReviewCountOrdinal,
+
+        CASE
+            WHEN LastQC.QcBy IS NULL THEN 1
+            WHEN LastQC.QcBy = @RequestedUserId THEN ISNULL(LastQC.QcLvl, 1) + 1
+            ELSE 1
+        END AS QcLvl
+
+    FROM StandardNarrative.Search se
+
+    INNER JOIN StandardNarrative.Status s
+        ON s.Id = se.StatusId
+
+    OUTER APPLY (
+        SELECT TOP 1
+            q.Id,
+            q.QcDate,
+            q.QcBy,
+            q.QcLvl
+        FROM StandardNarrative.EpisodeQCReview q
+        WHERE q.EpisodeId = se.EpisodeId
+        ORDER BY q.QcDate DESC, q.Id DESC
+    ) LastQC
+
+    LEFT JOIN StandardNarrative.Users u
+        ON u.Id = LastQC.QcBy
+
+    LEFT JOIN dbo.People p
+        ON p.Id = u.PersonId
+
+    OUTER APPLY (
+        SELECT
+            CASE
+                WHEN LastQC.Id IS NULL THEN 1
+                WHEN LastQC.QcBy = @RequestedUserId THEN COUNT(*)
+                ELSE COUNT(*) + 1
+            END AS QCNumber
+        FROM (
+            SELECT
+                q.Id,
+                q.QcBy,
+                LAG(q.QcBy) OVER (
+                    ORDER BY q.QcDate, q.Id
+                ) AS PreviousQcBy
+            FROM StandardNarrative.EpisodeQCReview q
+            WHERE q.EpisodeId = se.EpisodeId
+        ) q
+        WHERE q.PreviousQcBy IS NULL
+           OR q.PreviousQcBy <> q.QcBy
+    ) QCInfo
+
+    WHERE (@CycisID IS NULL OR se.CycisID LIKE '%' + @CycisID + '%')
+      AND (@FirstName IS NULL OR se.FirstName LIKE '%' + @FirstName + '%')
+      AND (@LastName IS NULL OR se.LastName LIKE '%' + @LastName + '%')
+      AND (@EpisodeId = 0 OR se.EpisodeId = @EpisodeId)
+      AND (s.IsCompleted = 1 OR s.IsReopened = 1)
+
+    ORDER BY se.EpisodeId;
+END
+GO

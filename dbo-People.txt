@@ -1,0 +1,13 @@
+ALTER TABLE People
+ADD IsProgrammer BIT NOT NULL DEFAULT 0;
+GO 
+
+UPDATE People
+SET IsProgrammer = 1
+WHERE Id IN(
+103770
+,103793
+,104885
+,103796
+)
+go
