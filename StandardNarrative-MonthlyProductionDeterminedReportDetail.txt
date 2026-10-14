@@ -1,4 +1,5 @@
-CREATE PROCEDURE [StandardNarrative].[MonthlyProductionDeterminedReportDetail]
+
+Create PROCEDURE [StandardNarrative].[MonthlyProductionDeterminedReportDetail]
     @From DATETIME,
     @To   DATETIME,
     @PersonId INT 
@@ -6,31 +7,27 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT DISTINCT
-        es.EpisodeId,
+    SELECT
+        DISTINCT es.EpisodeId,
         ed.CycisID,
-        (ed.LastName + ', ' + ed.FirstName) AS Name,
+        (ed.LastName + ', ' + ed.FirstName) NAME,
         ed.OpenDate,
-        es.Changed AS CompletedDate
+        es.Changed CompletedDate
     FROM StandardNarrative.EpisodeStatus es
         INNER JOIN StandardNarrative.Status s
             ON s.Id = es.StatusId
         INNER JOIN StandardNarrative.EpisodeAssignments ea
             ON ea.EpisodeId = es.EpisodeId
-            AND ea.IsActive = 1
         INNER JOIN StandardNarrative.Users u
             ON u.Id = ea.UserId
         INNER JOIN dbo.People p
             ON p.Id = u.PersonId
-        INNER JOIN StandardNarrative.EpisodeDemographics ed
-            ON ed.EpisodeId = es.EpisodeId
+        INNER JOIN StandardNarrative.EpisodeDemographics ed ON ed.EpisodeId  = es.EpisodeId
     WHERE
-        es.IsActive = 1
-        AND s.IsCompleted = 1
-        AND s.IsReopened = 0
+        s.Id = 3
         AND es.Changed >= @From
         AND es.Changed < DATEADD(DAY, 1, @To)
-        AND p.Id = @PersonId
+        AND p.Id = @PersonId 
     GROUP BY
         p.Id,
         ed.CycisID,
@@ -38,6 +35,6 @@ BEGIN
         ed.LastName,
         es.EpisodeId,
         ed.OpenDate,
-        es.Changed;
+        es.Changed
 END;
 GO

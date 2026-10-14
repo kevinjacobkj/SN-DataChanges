@@ -1,4 +1,5 @@
-Create PROCEDURE [StandardNarrative].[MonthlyProductionDeterminedReport]
+
+CREATE PROCEDURE [StandardNarrative].[MonthlyProductionDeterminedReport]
     @From DATETIME,
     @To   DATETIME
 AS
@@ -24,10 +25,7 @@ BEGIN
         INNER JOIN dbo.People p
             ON p.Id = u.PersonId
     WHERE
-        es.IsActive = 1 AND 
-        s.IsCompleted = 1
-        AND s.IsReopened = 0
-        AND ea.IsActive = 1
+        s.Id = 3
         AND es.Changed >= @From
         AND es.Changed < DATEADD(DAY, 1, @To)
     GROUP BY
@@ -41,5 +39,3 @@ BEGIN
         CompletedEpisodes DESC;
 END;
 GO
-
- 
