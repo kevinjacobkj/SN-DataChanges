@@ -1,0 +1,24 @@
+CREATE PROCEDURE [StandardNarrative].[GetCompletionCounts]
+    @Start DATE
+    , @End DATE
+AS
+
+;WITH cte (CompletionYear, CompletionMonth, IsEligible)
+AS (
+    SELECT YEAR(Changed), MONTH(Changed), e.IsEligible
+    FROM StandardNarrative.EpisodeStatus es
+    INNER JOIN StandardNarrative.Episodes e on es.EpisodeId = e.Id
+    INNER JOIN StandardNarrative.Status s on es.StatusId = s.Id
+    WHERE es.IsActive = 1 
+        And s.IsCompleted = 1 And s.IsReopened = 0
+        And CAST(es.Changed as Date) BETWEEN @Start And @End
+    )
+
+SELECT CompletionYear
+    , CompletionMonth
+    , SUM(CASE WHEN IsEligible = 'Yes' THEN 1 ELSE 0 END) Eligible
+    , SUM(CASE WHEN IsEligible <> 'Yes' THEN 1 ELSE 0 END) Ineligible
+FROM cte
+GROUP BY CompletionYear, CompletionMonth
+ORDER BY CompletionYear, CompletionMonth
+GO
