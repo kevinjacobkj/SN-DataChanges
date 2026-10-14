@@ -1,24 +1,46 @@
-CREATE PROCEDURE [StandardNarrative].[GetCompletionCounts]
-    @Start DATE
-    , @End DATE
+ALTER PROCEDURE [StandardNarrative].[GetCompletionCounts]
+    @Start DATE,
+    @End   DATE
 AS
+BEGIN
+    SET NOCOUNT ON;
 
-;WITH cte (CompletionYear, CompletionMonth, IsEligible)
-AS (
-    SELECT YEAR(Changed), MONTH(Changed), e.IsEligible
+    SELECT
+        YEAR(es.Changed) AS CompletionYear,
+        MONTH(es.Changed) AS CompletionMonth,
+        SUM(
+            CASE
+                WHEN e.IsEligible = 'Yes' THEN 1
+                ELSE 0
+            END
+        ) AS Eligible,
+        SUM(
+            CASE
+                WHEN e.IsEligible <> 'Yes'
+                     OR e.IsEligible IS NULL THEN 1
+                ELSE 0
+            END
+        ) AS Ineligible
     FROM StandardNarrative.EpisodeStatus es
-    INNER JOIN StandardNarrative.Episodes e on es.EpisodeId = e.Id
-    INNER JOIN StandardNarrative.Status s on es.StatusId = s.Id
-    WHERE es.IsActive = 1 
-        And s.IsCompleted = 1 And s.IsReopened = 0
-        And CAST(es.Changed as Date) BETWEEN @Start And @End
-    )
-
-SELECT CompletionYear
-    , CompletionMonth
-    , SUM(CASE WHEN IsEligible = 'Yes' THEN 1 ELSE 0 END) Eligible
-    , SUM(CASE WHEN IsEligible <> 'Yes' THEN 1 ELSE 0 END) Ineligible
-FROM cte
-GROUP BY CompletionYear, CompletionMonth
-ORDER BY CompletionYear, CompletionMonth
+    INNER JOIN StandardNarrative.Status s
+        ON s.Id = es.StatusId
+    INNER JOIN StandardNarrative.EpisodeAssignments ea
+        ON ea.EpisodeId = es.EpisodeId
+    INNER JOIN StandardNarrative.Users u
+        ON u.Id = ea.UserId
+    INNER JOIN dbo.People p
+        ON p.Id = u.PersonId
+    INNER JOIN StandardNarrative.Episodes e
+        ON e.Id = es.EpisodeId
+    WHERE
+        s.Id = 3
+        AND es.Changed >= @Start
+        AND es.Changed < DATEADD(DAY, 1, @End)
+    GROUP BY
+        YEAR(es.Changed),
+        MONTH(es.Changed)
+    ORDER BY
+        CompletionYear,
+        CompletionMonth;
+END;
 GO
